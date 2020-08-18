@@ -314,13 +314,7 @@ class WP_Object_Cache {
         'site-details',
         'site-lookup',
         'site-options',
-        'site-transient',
-        'users',
-        'useremail',
-        'userlogins',
-        'usermeta',
-        'user_meta',
-        'userslugs',
+        'site-transient'
     );
 
     /**
