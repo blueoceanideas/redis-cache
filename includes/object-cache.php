@@ -3,7 +3,7 @@
  * Plugin Name: Redis Object Cache Drop-In
  * Plugin URI: http://wordpress.org/plugins/redis-cache/
  * Description: A persistent object cache backend powered by Redis. Supports Predis, PhpRedis, Credis, HHVM, replication, clustering and WP-CLI.
- * Version: 2.0.11
+ * Version: 2.0.12
  * Author: Till Krüss
  * Author URI: https://objectcache.pro
  * License: GPLv3
@@ -616,19 +616,24 @@ class WP_Object_Cache {
             }
         }
 
+        $servers = false;
         $options = array();
 
         if ( defined( 'WP_REDIS_SHARDS' ) ) {
-            $parameters = WP_REDIS_SHARDS;
+            $servers = WP_REDIS_SHARDS;
+            $parameters['shards'] = $servers;
         } elseif ( defined( 'WP_REDIS_SENTINEL' ) ) {
-            $parameters = WP_REDIS_SERVERS;
+            $servers = WP_REDIS_SERVERS;
+            $parameters['servers'] = $servers;
             $options['replication'] = 'sentinel';
             $options['service'] = WP_REDIS_SENTINEL;
         } elseif ( defined( 'WP_REDIS_SERVERS' ) ) {
-            $parameters = WP_REDIS_SERVERS;
+            $servers = WP_REDIS_SERVERS;
+            $parameters['servers'] = $servers;
             $options['replication'] = true;
         } elseif ( defined( 'WP_REDIS_CLUSTER' ) ) {
-            $parameters = WP_REDIS_CLUSTER;
+            $servers = WP_REDIS_CLUSTER;
+            $parameters['cluster'] = $servers;
             $options['cluster'] = 'redis';
         }
 
@@ -648,7 +653,7 @@ class WP_Object_Cache {
             }
         }
 
-        $this->redis = new Predis\Client( $parameters, $options );
+        $this->redis = new Predis\Client( $servers ?: $parameters, $options );
         $this->redis->connect();
 
         $this->diagnostics = array_merge(

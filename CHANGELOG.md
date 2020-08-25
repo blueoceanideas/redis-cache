@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 2.0.12
 
 - Fixed bytes metrics calculation
-- WordPress Coding Standards
+- Fixed an issue with non-standard Predis configurations
+- Improve WordPress Coding Standards
 
 ## 2.0.11
 
