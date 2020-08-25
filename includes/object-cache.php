@@ -1874,10 +1874,19 @@ LUA;
         $groups = (array) $groups;
 
         if ( $this->redis_status() ) {
-            $this->global_groups = array_unique( array_merge( $this->global_groups, $groups ) );
+            $this->global_groups = $this->filterExcludedGlobalGroups(array_unique( array_merge( $this->global_groups, $groups ) ));
         } else {
             $this->ignored_groups = array_unique( array_merge( $this->ignored_groups, $groups ) );
         }
+    }
+
+    public function filterExcludedGlobalGroups($groups)
+    {
+        if (defined('WP_REDIS_EXCLUDED_GLOBAL_GROUPS') && !empty(WP_REDIS_EXCLUDED_GLOBAL_GROUPS)) {
+            $groups = \array_diff($groups, WP_REDIS_EXCLUDED_GLOBAL_GROUPS);
+        }
+
+        return $groups;
     }
 
     /**
