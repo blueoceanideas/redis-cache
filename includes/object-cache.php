@@ -3,7 +3,7 @@
  * Plugin Name: Redis Object Cache Drop-In
  * Plugin URI: http://wordpress.org/plugins/redis-cache/
  * Description: A persistent object cache backend powered by Redis. Supports Predis, PhpRedis, Credis, HHVM, replication, clustering and WP-CLI.
- * Version: 2.0.12
+ * Version: 2.0.13
  * Author: Till Krüss
  * Author URI: https://objectcache.pro
  * License: GPLv3
@@ -282,7 +282,7 @@ class WP_Object_Cache {
      *
      * @var array
      */
-    public $cache = array();
+    public $cache = [];
 
     /**
      * Holds the diagnostics values.
@@ -296,14 +296,14 @@ class WP_Object_Cache {
      *
      * @var array
      */
-    public $errors = array();
+    public $errors = [];
 
     /**
      * List of global groups.
      *
      * @var array
      */
-    public $global_groups = array(
+    public $global_groups = [
         'blog-details',
         'blog-id-cache',
         'blog-lookup',
@@ -315,25 +315,25 @@ class WP_Object_Cache {
         'site-lookup',
         'site-options',
         'site-transient'
-    );
+    ];
 
     /**
      * List of groups that will not be flushed.
      *
      * @var array
      */
-    public $unflushable_groups = array();
+    public $unflushable_groups = [];
 
     /**
      * List of groups not saved to Redis.
      *
      * @var array
      */
-    public $ignored_groups = array(
+    public $ignored_groups = [
         'counts',
         'plugins',
         'themes',
-    );
+    ];
 
     /**
      * Prefix used for global groups.
@@ -390,6 +390,8 @@ class WP_Object_Cache {
         if ( defined( 'WP_REDIS_GLOBAL_GROUPS' ) && is_array( WP_REDIS_GLOBAL_GROUPS ) ) {
             $this->global_groups = array_map( [ $this, 'sanitize_key_part' ], WP_REDIS_GLOBAL_GROUPS );
         }
+
+        $this->global_groups[] = 'redis-cache';
 
         if ( defined( 'WP_REDIS_IGNORED_GROUPS' ) && is_array( WP_REDIS_IGNORED_GROUPS ) ) {
             $this->ignored_groups = array_map( [ $this, 'sanitize_key_part' ], WP_REDIS_IGNORED_GROUPS );
@@ -465,7 +467,7 @@ class WP_Object_Cache {
      * @return array
      */
     protected function build_parameters() {
-        $parameters = array(
+        $parameters = [
             'scheme' => 'tcp',
             'host' => '127.0.0.1',
             'port' => 6379,
@@ -473,9 +475,9 @@ class WP_Object_Cache {
             'timeout' => 1,
             'read_timeout' => 1,
             'retry_interval' => null,
-        );
+        ];
 
-        $settings = array(
+        $settings = [
             'scheme',
             'host',
             'port',
@@ -485,7 +487,7 @@ class WP_Object_Cache {
             'timeout',
             'read_timeout',
             'retry_interval',
-        );
+        ];
 
         foreach ( $settings as $setting ) {
             $constant = sprintf( 'WP_REDIS_%s', strtoupper( $setting ) );
@@ -617,7 +619,7 @@ class WP_Object_Cache {
         }
 
         $servers = false;
-        $options = array();
+        $options = [];
 
         if ( defined( 'WP_REDIS_SHARDS' ) ) {
             $servers = WP_REDIS_SHARDS;
@@ -641,7 +643,7 @@ class WP_Object_Cache {
             $parameters['read_write_timeout'] = $parameters['read_timeout'];
         }
 
-        foreach ( array( 'WP_REDIS_SERVERS', 'WP_REDIS_SHARDS', 'WP_REDIS_CLUSTER' ) as $constant ) {
+        foreach ( [ 'WP_REDIS_SERVERS', 'WP_REDIS_SHARDS', 'WP_REDIS_CLUSTER' ] as $constant ) {
             if ( defined( $constant ) ) {
                 if ( $parameters['database'] ) {
                     $options['parameters']['database'] = $parameters['database'];
@@ -735,7 +737,9 @@ class WP_Object_Cache {
             $clients = $is_cluster ? WP_REDIS_CLUSTER : WP_REDIS_SERVERS;
 
             foreach ( $clients as $index => &$connection_string ) {
-                $url_components = wp_parse_url( $connection_string );
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url
+                $url_components = parse_url( $connection_string );
+
                 parse_str( $url_components['query'], $add_params );
 
                 if ( ! $is_cluster && isset( $add_params['alias'] ) ) {
@@ -752,6 +756,19 @@ class WP_Object_Cache {
             }
 
             $this->redis = new Credis_Cluster( $clients );
+
+            foreach ( $clients as &$_client ) {
+                $connection_string = "{$_client['scheme']}://{$_client['host']}:{$_client['port']}";
+                unset( $_client['scheme'], $_client['host'], $_client['port'] );
+
+                $params = array_filter( $_client );
+
+                if ( $params ) {
+                    $connection_string .= '?' . http_build_query( $params, null, '&' );
+                }
+
+                $_client = $connection_string;
+            }
 
             $args['servers'] = $clients;
         } else {
@@ -949,6 +966,7 @@ class WP_Object_Cache {
                 /**
                  * Filters the cache expiration time
                  *
+                 * @since 1.4.2
                  * @param int    $expiration The time in seconds the entry expires. 0 for no expiry.
                  * @param string $key        The cache key.
                  * @param string $group      The cache group.
@@ -1052,6 +1070,7 @@ class WP_Object_Cache {
             /**
              * Fires on every cache key deletion
              *
+             * @since 1.3.3
              * @param string $key          The cache key.
              * @param string $group        The group value appended to the $key.
              * @param float  $execute_time Execution time for the request in seconds.
@@ -1077,7 +1096,7 @@ class WP_Object_Cache {
         }
 
         $results = [];
-        $this->cache = array();
+        $this->cache = [];
 
         if ( $this->redis_status() ) {
             $salt = defined( 'WP_REDIS_PREFIX' ) ? trim( WP_REDIS_PREFIX ) : null;
@@ -1138,6 +1157,7 @@ class WP_Object_Cache {
                 /**
                  * Fires on every cache flush
                  *
+                 * @since 1.3.5
                  * @param null|array $results      Array of flush results.
                  * @param int        $delay        Given number of seconds to waited before invalidating the items.
                  * @param bool       $seletive     Whether a selective flush took place.
@@ -1349,6 +1369,7 @@ LUA;
             /**
              * Fires on every cache get request
              *
+             * @since 1.2.2
              * @param mixed  $value        Value of the cache entry.
              * @param string $key          The cache key.
              * @param string $group        The group value appended to the $key.
@@ -1364,6 +1385,7 @@ LUA;
                 /**
                  * Filters the return value
                  *
+                 * @since 1.4.2
                  * @param mixed  $value Value of the cache entry.
                  * @param string $key   The cache key.
                  * @param string $group The group value appended to the $key.
@@ -1391,8 +1413,8 @@ LUA;
             return false;
         }
 
-        $cache = array();
-        $derived_keys = array();
+        $cache = [];
+        $derived_keys = [];
 
         foreach ( $keys as $key ) {
             $derived_keys[ $key ] = $this->build_key( $key, $group );
@@ -1472,6 +1494,7 @@ LUA;
             /**
              * Fires on every cache get multiple request
              *
+             * @since 2.0.6
              * @param mixed  $value        Value of the cache entry.
              * @param string $key          The cache key.
              * @param string $group        The group value appended to the $key.
@@ -1487,6 +1510,7 @@ LUA;
                     /**
                      * Filters the return value
                      *
+                     * @since 1.4.2
                      * @param mixed  $value Value of the cache entry.
                      * @param string $key   The cache key.
                      * @param string $group The group value appended to the $key.
@@ -1525,6 +1549,7 @@ LUA;
             /**
              * Filters the cache expiration time
              *
+             * @since 1.4.2
              * @param int    $expiration The time in seconds the entry expires. 0 for no expiry.
              * @param string $key        The cache key.
              * @param string $group      The cache group.
@@ -1559,6 +1584,7 @@ LUA;
             /**
              * Fires on every cache set
              *
+             * @since 1.2.2
              * @param string $key          The cache key.
              * @param mixed  $value        Value of the cache entry.
              * @param string $group        The group value appended to the $key.
@@ -2094,6 +2120,7 @@ LUA;
             /**
              * Fires on every cache error
              *
+             * @since 1.5.0
              * @param \Exception $exception The exception triggered.
              */
             do_action( 'redis_object_cache_error', $exception );
