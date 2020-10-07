@@ -69,7 +69,6 @@ class Plugin {
     private function __construct() {
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
-        load_plugin_textdomain( 'redis-cache', false, 'redis-cache/languages' );
         register_activation_hook( WP_REDIS_FILE, 'wp_cache_flush' );
 
         if ( is_multisite() ) {
@@ -81,10 +80,6 @@ class Plugin {
         }
 
         $this->add_actions_and_filters();
-
-        if ( is_admin() && ! wp_next_scheduled( 'rediscache_discard_metrics' ) ) {
-            wp_schedule_event( time(), 'hourly', 'rediscache_discard_metrics' );
-        }
     }
 
     /**
@@ -95,6 +90,7 @@ class Plugin {
     public function add_actions_and_filters() {
         add_action( 'deactivate_plugin', [ $this, 'on_deactivation' ] );
         add_action( 'admin_init', [ $this, 'maybe_update_dropin' ] );
+        add_action( 'init', [ $this, 'init' ] );
 
         add_action( is_multisite() ? 'network_admin_menu' : 'admin_menu', [ $this, 'add_admin_menu_page' ] );
 
@@ -121,6 +117,19 @@ class Plugin {
 
         add_filter( 'qm/collectors', [ $this, 'register_qm_collector' ], 25 );
         add_filter( 'qm/outputter/html', [ $this, 'register_qm_output' ] );
+    }
+
+    /**
+     * Callback of the `init` hook.
+     *
+     * @return void
+     */
+    public function init() {
+        load_plugin_textdomain( 'redis-cache', false, 'redis-cache/languages' );
+        
+        if ( is_admin() && ! wp_next_scheduled( 'rediscache_discard_metrics' ) ) {
+            wp_schedule_event( time(), 'hourly', 'rediscache_discard_metrics' );
+        }
     }
 
     /**
@@ -339,9 +348,13 @@ class Plugin {
         }
 
         try {
+            $min_time = $screen->id === $this->screen
+                ? self::metrics_max_time()
+                : MINUTE_IN_SECONDS * 30;
+
             $metrics = $wp_object_cache->redis_instance()->zrangebyscore(
                 $wp_object_cache->build_key( 'metrics', 'redis-cache' ),
-                time() - ( MINUTE_IN_SECONDS * 30 ),
+                time() - $min_time,
                 time() - MINUTE_IN_SECONDS,
                 [ 'withscores' => true ]
             );
@@ -899,7 +912,7 @@ class Plugin {
             $wp_object_cache->redis_instance()->zremrangebyscore(
                 $wp_object_cache->build_key( 'metrics', 'redis-cache' ),
                 0,
-                time() - HOUR_IN_SECONDS
+                time() - self::metrics_max_time()
             );
         } catch ( Exception $exception ) {
             error_log( $exception ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
@@ -965,6 +978,19 @@ class Plugin {
             $message, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             esc_html( $debug )
         );
+    }
+
+    /**
+     * Retrieves metrix max time
+     *
+     * @return int
+     */
+    public static function metrics_max_time() {
+        if ( defined( 'WP_REDIS_METRICS_MAX_TIME' ) ) {
+            return intval( WP_REDIS_METRICS_MAX_TIME );
+        }
+
+        return HOUR_IN_SECONDS;
     }
 
     /**

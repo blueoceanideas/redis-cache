@@ -77,12 +77,14 @@ $constants = [
     'WP_REDIS_SHARDS',
     'WP_REDIS_SENTINEL',
     'WP_REDIS_IGBINARY',
+    'WP_REDIS_SERIALIZER',
     'WP_REDIS_MAXTTL',
     'WP_REDIS_PREFIX',
     'WP_CACHE_KEY_SALT',
     'WP_REDIS_GLOBAL_GROUPS',
     'WP_REDIS_IGNORED_GROUPS',
     'WP_REDIS_UNFLUSHABLE_GROUPS',
+    'WP_REDIS_METRICS_MAX_TIME',
 ];
 
 foreach ( $constants as $constant ) {

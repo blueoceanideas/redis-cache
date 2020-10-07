@@ -1,11 +1,26 @@
 # Changelog
 
+## 2.0.15
+
+- Reverted `build_key()` changes due to issues in multisite environments
+
+## 2.0.14
+
+- Made Object Cache Pro card translatable
+- Added `WP_REDIS_SERIALIZER` to diagnostics
+- Improved speed of `build_key()`
+- Support settings `WP_REDIS_PREFIX` and `WP_REDIS_SELECTIVE_FLUSH` via environment variable
+- Added `WP_REDIS_METRICS_MAX_TIME` to adjust stored metrics timeframe
+- Delay loading of text domain and schedule until `init` hook
+- Upgraded bundled Predis library to v1.1.6
+- Prevent variable referencing issue in `connect_using_credis()`
+
 ## 2.0.13
 
 - Updated bundled Predis library to v1.1.4
 - Made `redis-cache` a global group for improved metrics on multisite
 - Switched to short array syntax
-- Added `@since` tags to all functions
+- Added `@since` tags to all hooks
 - Use `parse_url()` instead of `wp_parse_url()` in drop-in
 - Fixed plugin instance variable name in `wp redis status`
 
