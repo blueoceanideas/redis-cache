@@ -954,6 +954,10 @@ class WP_Object_Cache {
      * @return  bool                   Returns TRUE on success or FALSE on failure.
      */
     protected function add_or_replace( $add, $key, $value, $group = 'default', $expiration = 0 ) {
+        if ($key === 'alloptions' && $group === 'options') {
+            return $this->set_alloptions($value);
+        }
+
         $cache_addition_suspended = function_exists( 'wp_suspend_cache_addition' )
             ? wp_suspend_cache_addition()
             : false;
@@ -1049,6 +1053,10 @@ class WP_Object_Cache {
      * @return  bool               Returns TRUE on success or FALSE on failure.
      */
     public function delete( $key, $group = 'default' ) {
+        if ($key === 'alloptions' && $group === 'options') {
+            return $this->delete_alloptions();
+        }
+
         $result = false;
         $derived_key = $this->build_key( $key, $group );
 
@@ -1331,6 +1339,10 @@ LUA;
      * @return  bool|mixed         Cached object value.
      */
     public function get( $key, $group = 'default', $force = false, &$found = null ) {
+        if ($key === 'alloptions' && $group === 'options') {
+            return $this->get_alloptions();
+        }
+
         $derived_key = $this->build_key( $key, $group );
 
         if ( isset( $this->cache[ $derived_key ] ) && ! $force ) {
@@ -1544,6 +1556,10 @@ LUA;
      * @return  bool               Returns TRUE on success or FALSE on failure.
      */
     public function set( $key, $value, $group = 'default', $expiration = 0 ) {
+        if ($key === 'alloptions' && $group === 'options') {
+            return $this->set_alloptions($value);
+        }
+
         $result = true;
         $derived_key = $this->build_key( $key, $group );
 
@@ -2156,6 +2172,91 @@ LUA;
     public function __get( $name ) {
         return isset( $this->{$name} ) ? $this->{$name} : null;
     }
+
+    public function get_alloptions()
+    {
+        // Check our internal cache, to avoid the more expensive get-multi
+        $key = $this->build_key('alloptions', 'options');
+        if (isset($this->cache[$key])) {
+            return $this->cache[$key];
+        }
+
+        $keys = $this->build_key('alloptionskeys', 'options');
+        if (empty($keys) || !is_array($keys)) {
+            return [];
+        }
+
+        $data = $this->get_multiple(['options' => array_keys($keys)]);
+        if (empty($data) || empty($data['options'])) {
+            return [];
+        }
+
+        $this->add_to_internal_cache($key, $data['options']);
+
+        return $this->cache[$key];
+    }
+
+    public function set_alloptions($data)
+    {
+        $internal_cache_key = $this->build_key('alloptions', 'options');
+        $existing = $internal_cache = $this->get_alloptions();
+
+        $keys = $this->build_key('alloptionskeys', 'options');
+        if (empty($keys) || !is_array($keys)) {
+            $keys = [];
+        }
+
+        // While you could use array_diff here, it ends up being a bit more
+        // complicated than just checking
+        foreach ($data as $key => $value) {
+            if (isset($existing[$key]) && $existing[$key] === $value) {
+                continue;
+            }
+
+            if (!isset($keys[$key])) {
+                $keys[$key] = true;
+            }
+
+            if (!$this->set($key, $value, 'options')) {
+                return false;
+            }
+
+            $internal_cache[$key] = $value;
+        }
+
+        // Remove deleted elements
+        foreach ($existing as $key => $value) {
+            if (isset($data[$key])) {
+                continue;
+            }
+
+            if (isset($keys[$key])) {
+                unset($keys[$key]);
+            }
+
+            if (!$this->delete($key, 'options')) {
+                return false;
+            }
+
+            unset($internal_cache[$key]);
+        }
+
+        if (!$this->set('alloptionskeys', $keys, 'options')) {
+            return false;
+        }
+        $this->add_to_internal_cache($internal_cache_key, $internal_cache);
+
+        return true;
+    }
+
+    public function delete_alloptions()
+    {
+        $key = $this->build_key('alloptions', 'options');
+        $this->cache[$key] = [];
+
+        return $this->delete('alloptionskeys', 'options');
+    }
+
 }
 
 endif;
